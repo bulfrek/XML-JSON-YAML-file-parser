@@ -3,29 +3,33 @@ import yaml
 import xmltodict
 import os
 
-def xml_to_json(xml_string):
-    json_data = xmltodict.parse(xml_string)
-    return json.dumps(json_data, indent=4)
+CONVERSION_FUNCTIONS = {
+    ".xml": {
+        "json": lambda x: json.dumps(xmltodict.parse(x), indent=4),
+        "yaml": lambda x: yaml.dump(xmltodict.parse(x), indent=4, sort_keys=False),
+        "yml": lambda x: yaml.dump(xmltodict.parse(x), indent=4, sort_keys=False),
 
-def json_to_yaml(json_string):
-    json_data = json.loads(json_string)
-    return yaml.dump(json_data, indent=4, sort_keys=False)
-
-def json_to_xml(json_string):
-    json_data = json.loads(json_string)
-    return xmltodict.unparse(json_data, pretty=True)
-
-def yaml_to_json(yaml_string):
-    yaml_data = yaml.safe_load(yaml_string)
-    return json.dumps(yaml_data, indent=4)
+    },
+    ".json": {
+        "yaml": lambda x: yaml.dump(json.loads(x), indent=4),
+        "yml": lambda x: yaml.dump(json.loads(x), indent=4),
+        "xml": lambda x: xmltodict.unparse(json.loads(x), pretty=True),
+    },
+    ".yaml": {
+        "json": lambda x: json.dumps(yaml.safe_load(x), indent=4),
+        "xml": lambda x: xmltodict.unparse(json.loads(json.dumps(yaml.safe_load(x))), pretty=True),
+    },
+    ".yml": {
+        "json": lambda x: json.dumps(yaml.safe_load(x), indent=4),
+        "xml": lambda x: xmltodict.unparse(json.loads(json.dumps(yaml.safe_load(x))), pretty=True),
+    }
+}
 
 def get_file_extension(file_path):
     _, ext = os.path.splitext(file_path)
     return ext.lower()
 
-
 if __name__ == "__main__":
-    import os
 
     input_file = input("Enter the path to the file: ")
 
@@ -43,29 +47,16 @@ if __name__ == "__main__":
         if output_format not in valid_output_formats:
             print("Invalid output format. Please choose between json, yaml, or xml.")
         else:
-            output_file = os.path.splitext(input_file)[0] + "." + output_format
-
-            if input_format == ".xml":  
-                if output_format == "yaml":
-                    json_data = xml_to_json(data)
-                    output = json_to_yaml(json_data)
-                elif output_format == "json":
-                    output = xml_to_json(data)
-            elif input_format == ".json":  
-                if output_format == "yaml":
-                    output = json_to_yaml(data)
-                elif output_format == "xml":
-                    output = json_to_xml(data)
-            elif input_format == ".yaml" or input_format == ".yml":  
-                if output_format == "json":
-                    output = yaml_to_json(data)
-                elif output_format == "xml":
-                    json_data = yaml_to_json(data)
-                    output = json_to_xml(json_data)
-            else:
+            if input_format not in CONVERSION_FUNCTIONS:
                 print("Unsupported file format.")
+            else:
+                if output_format not in CONVERSION_FUNCTIONS[input_format]:
+                    print(f"Conversion from '{input_format}' to '{output_format}' not supported.")
+                else:
+                    output_data = CONVERSION_FUNCTIONS[input_format][output_format](data)
+                    output_file = os.path.splitext(input_file)[0] + "." + output_format
 
-            with open(output_file, "w") as outfile:
-                outfile.write(output)
+                    with open(output_file, "w") as outfile:
+                        outfile.write(output_data)
 
-            print(f"'{input_file}' file converted and saved to '{output_file}' successfully.")
+                    print(f"'{input_file}' file converted and saved to '{output_file}' successfully.")
